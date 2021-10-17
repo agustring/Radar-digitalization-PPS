@@ -29,9 +29,9 @@ import ADC
 import Detector
 import Seguimiento
 
-cola_recibido = Queue()
-cola_palabras = Queue()
-cola_M        = Queue()
+cola_recibido = []
+cola_palabras = []
+cola_M        = []
 
    
 get_bin = lambda x, n: format(x, 'b').zfill(n)
@@ -49,7 +49,7 @@ def packet_callback(win_pcap, param, header, pkt_data):
         #win_pcap.stop()
     if not eth.type == 0x0801:
         return
-    cola_recibido.put(eth.data)
+    cola_recibido.append(eth.data)
     
 
 # VARIABLES GLOBALES: Dir IP EVRT y Archivo donde se guarda la misma.
@@ -397,12 +397,16 @@ class RadarGUI(QtWidgets.QMainWindow):
         self.RadarWidget.borrarPuntos()
         self.RadarWidget.plotearM(M)
         # Se genera una copia de los seguimientos (para lidiar con condiciones de carrera entre modificaciones y lecturas)
+        #  VER TAMAñO DEL DATO.
+        #t = time.time()
         TrackListCopy = np.copy(self.seg.TrackList)
+        #print(time.time()-t)
         self.tabla_datos.clearContents()
         current_time = self.label_hora.text()
         # Recorremos los seguimientos activos para plotear en radar y en tabla.
         # El paquete con los seguimientos para enviar al otro terminal se arma aca.
         self.paqueteSocket = '('
+        #t=time.time()
         for t in TrackListCopy:
             tAng = '%.2f'%(t.Pos[1])
             tDis = '%.2f'%(t.Pos[0])
@@ -425,6 +429,7 @@ class RadarGUI(QtWidgets.QMainWindow):
             #self.escrituraEnLogs(str(t.TrackID+1)+'\t\t'+str(tDis)+'\t\t'+str(tAng)+'\t\t'+str(tVel)+'\t\t'+current_time)
             self.paqueteSocket = self.paqueteSocket + (tDis+'|'+tAng+'|'+tVel)
             self.paqueteSocket = self.paqueteSocket + ('&')
+        #print(time.time()-t)
         self.paqueteSocket = self.paqueteSocket + (')')
         # if (self.mutexSocket.locked()):
         #     self.mutexSocket.release()
@@ -451,8 +456,8 @@ class RadarGUI(QtWidgets.QMainWindow):
         SEQ_ctrl=-1
 
         while not primer_HM  or not primer_TRG:
-             if not cola_recibido.qsize()==0:            
-                data = cola_recibido.get()
+             if not len(cola_recibido)==0:            
+                data = cola_recibido.pop()
                 palabras = np.empty(int(len(data)/4),dtype=object)
                 for i in range(0,len(data),4):
                     palabras[int(i/4)] = binarios[data[i+3],data[i+2]]+binarios[data[i+1],data[i]]
@@ -466,6 +471,7 @@ class RadarGUI(QtWidgets.QMainWindow):
                     if HM:
                         print("llego HM")
                         primer_HM = True
+                        break
                     if primer_HM and TRG:
                         primer_TRG = True
                         break
@@ -486,78 +492,33 @@ class RadarGUI(QtWidgets.QMainWindow):
         #file = open('Datos.txt','rb')
         cant = 0
         while 1:               
-            if not cola_recibido.qsize()==0:        
-                data = cola_recibido.get()
+            if not len(cola_recibido)==0:        
+                data = cola_recibido.pop()
                 data = np.frombuffer(data,dtype=('u4'))
-                #file.write(data)
-                #data = file.read(1452)
-                #print(data)
+
                 x = (((data[:,None] & (1 << np.arange(32))[::-1])) > 0).astype(int)  # ORDEN IZQUIERDA MSB
-                #print(x)
-                #cant += 1
-                #if (cant == 1600):
-                #    break
-                
-                #print("Tamaño data: "+str(len(data)))
-                #aux = int.from_bytes(data, byteorder="big")  # => 17
-                #integer_list = []
-                #integer_list = bin(int.from_bytes(data, byteorder="big"))  # => '0b10001'               
-                #integer_list = integer_list[2::]
-                #print("Tamaño list: "+str(len(integer_list)))
                 
                 arreglo = []
 
-                #for x in range (0,int(len(integer_list)/32)):
-                #    arreglo.append(integer_list[0+x*32:32+x*32])
-
-                #palabras = np.empty(int(len(data)/4),dtype=object)
-                #for i in range(0,len(data),4):
-                #    palabras[int(i/4)] = binarios[data[i+3],data[i+2]]+binarios[data[i+1],data[i]]
-                #for palabra in palabras:
-                             
-                    #SEQ=int(palabra[0:2],2) #Separa los primeros dos bits (secuencia)
-                    #HM=int(palabra[2:3]) #Bit de HM
-                    #BI=int(palabra[3:8],2) #Bits de BI
-                    #TRG=int(palabra[8:13],2) #Bits de TRG
-                    #CFAR=list(palabra[13:]) #Bits de CFAR 
-                #for row in arreglo:
                 for i in range(0,len(x)):
-                    #print(integer_list[i*31:31+i*31])
-                    #print("Otro")
-                    #print(x[i])
                     SEC=x[i][0:2]
                     HM=x[i][2] #Bit de HM
                     BI=x[i][3:8] #Bits de BI
                     TRG=x[i][8:13] #Bits de TRG
                     CFAR=list(x[i][13:32]) #Bits de CFAR
 
-                    #strings = [str(integer) for integer in BI]
-                    #a_string = "".join(strings)
-                    #BI = int(a_string)
-
-                    #strings = [str(integer) for integer in TRG]
-                    #a_string = "".join(strings)
-                    #TRG = int(a_string)
-
-                    
-                    #print("Sec: "+str(SEC)) 
-                    #print("HM: "+str(HM)) 
-                    #print("BI: "+str(BI))
-                    #print("TRG: "+str(TRG))
-                    #print("CFAR: "+str(CFAR)) 
-                    #print(" ")
-
-        
                     if (HM==1):
-                        end = time.time()
-                        print(end - start)
+                        #print(time.time() - start)
                         columna=1
                         fila=0
-                        print("Cantidad de cambios por HM: "+str(cantidadCambios))
+                        #print("Cantidad de cambios por HM: "+str(cantidadCambios))
                         cantidadCambios = 0
+
+                        start=time.time()
                         self.plotWorker(M)
-                        print("Otro HM")
-                        start = time.time()
+                        print(time.time() - start)
+
+                        #start = time.time()
 
                     if not (1 in TRG):
                         for i in range(0,19):
@@ -569,31 +530,11 @@ class RadarGUI(QtWidgets.QMainWindow):
                         
                     else:
                         if not (1 in BI):
-                    #        for x in range(0,19-TRG):
-                    #           if (M[fila,columna+x] != int(CFAR[x])):
-                    #                M[fila,columna+x] = CFAR[x]
-                    #                cantidadCambios+=1
                             fila += 1
                             columna=1
-                    #        for x in range(0,TRG):
-                    #            if (str(M[fila,columna+x]) != str(CFAR[19-TRG+x])):
-                    #                M[fila,columna+x] = CFAR[x]
-                    #                cantidadCambios+=1
-                    #        columna = TRG+1
                         else:        
-                    #        for x in range(0,19-TRG):
-                    #           if (str(M[fila,columna+x]) != str(CFAR[x])) and (x != 19-BI):
-                    #                M[fila,columna+x] = CFAR[x]
-                    #                cantidadCambios+=1
-
                             fila += 1
-                            columna=1
-                    #        for x in range(0,TRG):
-                    #            if (str(M[fila,columna+x]) != str(CFAR[19-TRG+x])) and (x != 19-BI):
-                    #                M[fila,columna+x] = CFAR[x]
-                    #                cantidadCambios+=1
-                    #        columna = TRG+1
-                  
+                            columna=1                  
                                  
         
 if __name__ == "__main__":
